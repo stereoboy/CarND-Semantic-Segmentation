@@ -4,7 +4,8 @@ import helper
 import warnings
 from distutils.version import LooseVersion
 import project_tests as tests
-
+import matplotlib.pyplot as plt
+from moviepy.editor import ImageSequenceClip
 
 # Check TensorFlow Version
 assert LooseVersion(tf.__version__) >= LooseVersion('1.0'), 'Please use TensorFlow version 1.0 or newer.  You are using {}'.format(tf.__version__)
@@ -71,7 +72,6 @@ def layers(vgg_layer3_out, vgg_layer4_out, vgg_layer7_out, num_classes):
     output2 = tf.add(conv_1x1, output1)
     output2 = tf.layers.conv2d_transpose(output2, num_classes, 16, 8, padding='SAME',
             kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-3))
-    print("output2:", output2)
     return output2
 tests.test_layers(layers)
 
@@ -88,7 +88,7 @@ def optimize(nn_last_layer, correct_label, learning_rate, num_classes):
     # TODO: Implement function
     # setup logits
     logits = tf.reshape(nn_last_layer, (-1, num_classes))
-    print("nn_last_layer:", nn_last_layer)
+
     print("logits:", logits)
     # setup loss
     entropy_loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=logits, labels=correct_label))
@@ -103,9 +103,9 @@ def optimize(nn_last_layer, correct_label, learning_rate, num_classes):
     return logits, train_op, total_loss
 tests.test_optimize(optimize)
 
-
+MEAN_IOU_INTERVAL=5
 def train_nn(sess, epochs, batch_size, get_batches_fn, train_op, cross_entropy_loss, input_image,
-             correct_label, keep_prob, learning_rate):
+             logits, correct_label, num_classes, keep_prob, learning_rate):
     """
     Train neural network and print out the loss during training.
     :param sess: TF Session
@@ -119,13 +119,40 @@ def train_nn(sess, epochs, batch_size, get_batches_fn, train_op, cross_entropy_l
     :param keep_prob: TF Placeholder for dropout keep probability
     :param learning_rate: TF Placeholder for learning rate
     """
+    learning_curve = []
+    mean_iou_curve = []
+    labels = tf.argmax(tf.reshape(correct_label, (-1, num_classes)), axis=1)
+    predictions = tf.argmax(logits, axis=1)
+    print("correct_label", labels)
+    print("predictions", predictions)
+    mean_iou, update_op = tf.metrics.mean_iou(labels=labels, predictions=predictions, num_classes=num_classes)
+    tf.global_variables_initializer().run()
+    tf.local_variables_initializer().run()
     # TODO: Implement function
     for epoch in range(epochs):
+        step = 0
         for image, label in get_batches_fn(batch_size):
-            sess.run(train_op, feed_dict={input_image:image, correct_label:label, keep_prob:0.5, learning_rate:1e-3})
-tests.test_train_nn(train_nn)
+            _, total_loss_val = sess.run([train_op, cross_entropy_loss], feed_dict={input_image:image, correct_label:label, keep_prob:0.5, learning_rate:1e-3})
+            print("\t[%03d-%03d] loss=%f"%(epoch, step, total_loss_val))
+            step += 1
 
+        learning_curve.append(total_loss_val)
+        if epoch%MEAN_IOU_INTERVAL == 0:
+            mean_iou_vals = [] 
+            for image, label in get_batches_fn(batch_size):
+                _ = sess.run(update_op, feed_dict={input_image:image, correct_label:label, keep_prob:1.0, learning_rate:1e-3})
+                mean_iou_vals.append(sess.run(mean_iou, feed_dict={input_image:image, correct_label:label, keep_prob:1.0, learning_rate:1e-3}))
+            mean_iou_val = sum(mean_iou_vals)/len(mean_iou_vals)
+            print("[%03d] mean_iou=%f "%(epoch, mean_iou_val))
+            mean_iou_curve.append(mean_iou_val)
 
+            if mean_iou_val > 0.83:
+                break;
+
+    return learning_curve, mean_iou_curve
+#tests.test_train_nn(train_nn)
+
+print("#################################################################################")
 def run():
     num_classes = 2
     image_shape = (160, 576)
@@ -159,15 +186,33 @@ def run():
         logits, train_op, total_loss = optimize(layer_output, correct_label, learning_rate, num_classes)
 
         # TODO: Train NN using the train_nn function
-        epochs = 6
-        batch_size = 32 # Tuning Params
-        train_nn(sess, epochs, batch_size, get_batches_fn, train_op, total_loss, input_image, correct_label, keep_prob, learning_rate)
+        epochs = 175
+        batch_size = 16 # Tuning Params
+        learning_curve, mean_iou_curve = train_nn(sess, epochs, batch_size, get_batches_fn, train_op, total_loss, input_image, logits, correct_label, num_classes, keep_prob, learning_rate)
 
+        plt.plot(learning_curve)
+        plt.title('training curves')
+        plt.ylabel('loss')
+        plt.xlabel('epochs')
+        plt.savefig('./learning_curve.png')
+
+        plt.plot([i*MEAN_IOU_INTERVAL for i in range(len(mean_iou_curve))], mean_iou_curve)
+        plt.title('mean iou curves')
+        plt.ylabel('iou')
+        plt.xlabel('epochs')
+        plt.savefig('./mean_iou_curve.png')
+        #plt.show()
 
         # TODO: Save inference data using helper.save_inference_samples
         #  helper.save_inference_samples(runs_dir, data_dir, sess, image_shape, logits, keep_prob, input_image)
-        helper.save_inference_samples(runs_dir, data_dir, sess, image_shape, logits, keep_prob, input_image)
+        output_dir = helper.save_inference_samples(runs_dir, data_dir, sess, image_shape, logits, keep_prob, input_image)
+
         # OPTIONAL: Apply the trained model to a video
+        video_file = 'output.mp4'
+        fps = 2
+        print("Creating video {}, FPS={}".format(video_file, fps))
+        clip = ImageSequenceClip(output_dir, fps=fps)
+        clip.write_videofile(video_file)
 
 
 if __name__ == '__main__':
