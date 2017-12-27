@@ -58,5 +58,7 @@ The function train_nn is implemented correctly. The loss of the network should b
   * My model got 0.830137 mean iou for testing data. Unfortunately there is no ground truth labels for validation or testing. And testing set is too small to split into testing data and validation data. But the final testing result is so reasonable to see as follows.
 ![alt text][image2]
 
-<div style="position:relative;height:0;padding-bottom:56.25%"><iframe src="https://www.youtube.com/embed/ytjy5uhnnAw?ecver=2" width="640" height="360" frameborder="0" gesture="media" allow="encrypted-media" style="position:absolute;width:100%;height:100%;left:0" allowfullscreen></iframe></div>
+[final_result_video](https://www.youtube.com/embed/ytjy5uhnnAw?ecver=2)
+
+[![alt text](http://img.youtube.com/vi/ytjy5uhnnAw/0.jpg)](https://www.youtube.com/embed/ytjy5uhnnAw?ecver=2)
 
