@@ -89,16 +89,12 @@ def optimize(nn_last_layer, correct_label, learning_rate, num_classes):
     # setup logits
     logits = tf.reshape(nn_last_layer, (-1, num_classes))
 
-    print("logits:", logits)
     # setup loss
     entropy_loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=logits, labels=correct_label))
-    print("entropy_loss:", entropy_loss)
     regularizer_loss = tf.losses.get_regularization_loss()
     total_loss = entropy_loss + regularizer_loss
-    print("total_loss:", total_loss)
     # setup train_op
     optimizer = tf.train.AdamOptimizer(learning_rate)
-    print("optimizer:", optimizer)
     train_op = optimizer.minimize(total_loss)
     return logits, train_op, total_loss
 tests.test_optimize(optimize)
@@ -123,8 +119,6 @@ def train_nn(sess, epochs, batch_size, get_batches_fn, train_op, cross_entropy_l
     mean_iou_curve = []
     labels = tf.argmax(tf.reshape(correct_label, (-1, num_classes)), axis=1)
     predictions = tf.argmax(logits, axis=1)
-    print("correct_label", labels)
-    print("predictions", predictions)
     mean_iou, update_op = tf.metrics.mean_iou(labels=labels, predictions=predictions, num_classes=num_classes)
     tf.global_variables_initializer().run()
     tf.local_variables_initializer().run()
@@ -178,7 +172,6 @@ def run():
 
         # TODO: Build NN using load_vgg, layers, and optimize function
         input_image, keep_prob, layer3_out, layer4_out, layer7_out = load_vgg(sess, vgg_path)
-        print("input_image", input_image)
         layer_output = layers(layer3_out, layer4_out, layer7_out, num_classes)
 
         correct_label = tf.placeholder(tf.float32, [None, None, None, num_classes])
